@@ -7,6 +7,10 @@
  *   4. Show inline errors; collapse the upload zone on success
  */
 
+// Calculation functions — imported here; will be wired to results display in a future issue.
+// eslint-disable-next-line no-unused-vars
+import { detectGap, aggregateCalories, estimateTDEE, classifyBMI, classifyWaist } from './src/calculations.js';
+
 (function () {
   'use strict';
 
