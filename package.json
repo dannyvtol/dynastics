@@ -1,0 +1,13 @@
+{
+  "name": "dynastics",
+  "version": "0.1.0",
+  "description": "MyNetDiary export analyser — all processing happens in your browser",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}
