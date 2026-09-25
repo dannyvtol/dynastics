@@ -84,8 +84,8 @@
     }
 
     var sheet = workbook.Sheets['Food'];
-    // header: true → array of plain objects keyed by the first row
-    var rows = XLSX.utils.sheet_to_json(sheet, { header: 0, defval: null });
+    // Default behaviour (no header option) → array of plain objects keyed by first-row values.
+    var rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
     if (rows.length === 0) {
       throw new Error('The Food sheet appears to be empty.');
