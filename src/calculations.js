@@ -10,6 +10,26 @@
  */
 
 // ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {{ category: string, risk: 'normal' | 'elevated' | 'high' }} ClassificationResult
+ */
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Energy density of body fat used in the energy-balance equation.
+ * Source: commonly cited approximation (Hall et al., 2012).
+ *
+ * @type {number} kcal per kg of body fat
+ */
+const KCAL_PER_KG_BODY_FAT = 7700;
+
+// ---------------------------------------------------------------------------
 // detectGap
 // ---------------------------------------------------------------------------
 
@@ -20,11 +40,11 @@
  *
  * @param {Date[]} dates
  * @param {number} [maxGapDays=7]
- * @returns {{ trimmedDates: Date[], gapFound: boolean, trimmedFrom: Date | null }}
+ * @returns {{ trimmedDates: Date[], gapFound: boolean }}
  */
 export function detectGap(dates, maxGapDays = 7) {
   if (dates.length === 0) {
-    return { trimmedDates: [], gapFound: false, trimmedFrom: null };
+    return { trimmedDates: [], gapFound: false };
   }
 
   const sorted = [...dates].sort((a, b) => a - b);
@@ -39,14 +59,12 @@ export function detectGap(dates, maxGapDays = 7) {
   }
 
   if (lastGapIndex === -1) {
-    return { trimmedDates: sorted, gapFound: false, trimmedFrom: null };
+    return { trimmedDates: sorted, gapFound: false };
   }
 
-  const trimmedDates = sorted.slice(lastGapIndex);
   return {
-    trimmedDates,
+    trimmedDates: sorted.slice(lastGapIndex),
     gapFound: true,
-    trimmedFrom: sorted[lastGapIndex],
   };
 }
 
@@ -84,24 +102,26 @@ export function aggregateCalories(entries) {
  * Estimate Total Daily Energy Expenditure from weight change and calorie data.
  *
  * Uses the energy-balance equation:
- *   TDEE ≈ avgDailyCalories − (totalWeightChangeKg × 7700 / daysAnalysed)
+ *   TDEE ≈ avgDailyCalories − (totalWeightChangeKg × KCAL_PER_KG_BODY_FAT / daysAnalysed)
+ *
+ * avgDailyCalories is the mean over logged calorie entries that fall within
+ * the analysed window — averaged by entry count, not by calendar days.
  *
  * Returns null when fewer than 2 weigh-ins are provided (can't compute delta).
  *
- * @param {{ date: string, weightKg: number }[]} weightEntries  YYYY-MM-DD dates
+ * @param {{ date: Date, weightKg: number }[]} weightEntries
  * @param {{ [yyyymmdd: string]: number }} caloriesByDate
  * @returns {{ tdee: number, avgDailyCalories: number, weightChangeKgPerWeek: number, daysAnalysed: number } | null}
  */
 export function estimateTDEE(weightEntries, caloriesByDate) {
   if (weightEntries.length < 2) return null;
 
-  const sorted = [...weightEntries].sort((a, b) => a.date.localeCompare(b.date));
+  const sorted = [...weightEntries].sort((a, b) => a.date - b.date);
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
 
   const msPerDay = 24 * 60 * 60 * 1000;
-  const daysAnalysed =
-    (new Date(last.date) - new Date(first.date)) / msPerDay;
+  const daysAnalysed = (last.date - first.date) / msPerDay;
 
   if (daysAnalysed === 0) return null;
 
@@ -109,8 +129,8 @@ export function estimateTDEE(weightEntries, caloriesByDate) {
   const weightChangeKgPerWeek = (totalWeightChangeKg / daysAnalysed) * 7;
 
   // Average calories over days that fall within the analysed window
-  const startDate = first.date;
-  const endDate = last.date;
+  const startDate = first.date.toISOString().slice(0, 10);
+  const endDate = last.date.toISOString().slice(0, 10);
   const calorieDays = Object.entries(caloriesByDate).filter(
     ([d]) => d >= startDate && d <= endDate
   );
@@ -120,7 +140,8 @@ export function estimateTDEE(weightEntries, caloriesByDate) {
       ? calorieDays.reduce((sum, [, v]) => sum + v, 0) / calorieDays.length
       : 0;
 
-  const tdee = avgDailyCalories - (totalWeightChangeKg * 7700) / daysAnalysed;
+  const tdee =
+    avgDailyCalories - (totalWeightChangeKg * KCAL_PER_KG_BODY_FAT) / daysAnalysed;
 
   return {
     tdee: Math.round(tdee),
@@ -138,7 +159,7 @@ export function estimateTDEE(weightEntries, caloriesByDate) {
  * Classify a pre-computed BMI value using WHO bands.
  *
  * @param {number} bmi
- * @returns {{ category: string, risk: 'normal' | 'elevated' | 'high' }}
+ * @returns {ClassificationResult}
  */
 export function classifyBMI(bmi) {
   if (bmi < 18.5) return { category: 'Underweight',    risk: 'elevated' };
@@ -161,7 +182,7 @@ export function classifyBMI(bmi) {
  *
  * @param {number} waistCm
  * @param {'male' | 'female'} sex
- * @returns {{ category: string, risk: 'normal' | 'elevated' | 'high' }}
+ * @returns {ClassificationResult}
  */
 export function classifyWaist(waistCm, sex) {
   const [elevatedThreshold, highThreshold] =

@@ -16,7 +16,6 @@ describe('detectGap', () => {
     expect(detectGap([])).toEqual({
       trimmedDates: [],
       gapFound: false,
-      trimmedFrom: null,
     });
   });
 
@@ -28,7 +27,6 @@ describe('detectGap', () => {
     ];
     const result = detectGap(dates, 7);
     expect(result.gapFound).toBe(false);
-    expect(result.trimmedFrom).toBeNull();
     expect(result.trimmedDates).toHaveLength(3);
   });
 
@@ -41,7 +39,6 @@ describe('detectGap', () => {
     expect(result.gapFound).toBe(true);
     expect(result.trimmedDates).toHaveLength(2);
     expect(result.trimmedDates[0]).toEqual(new Date('2026-01-12'));
-    expect(result.trimmedFrom).toEqual(new Date('2026-01-12'));
   });
 
   it('trims to the segment after the LAST gap when multiple gaps exist', () => {
@@ -136,6 +133,14 @@ describe('aggregateCalories', () => {
     expect(aggregateCalories(entries)).toEqual({ '2026-01-01': 300 });
   });
 
+  it('skips entries where calories is NaN', () => {
+    const entries = [
+      { date: new Date('2026-01-02T12:00:00Z'), calories: NaN },
+      { date: new Date('2026-01-02T13:00:00Z'), calories: 400 },
+    ];
+    expect(aggregateCalories(entries)).toEqual({ '2026-01-02': 400 });
+  });
+
   it('uses UTC date for truncation (midnight UTC stays on the same day)', () => {
     const entries = [
       { date: new Date('2026-01-03T00:00:00Z'), calories: 250 },
@@ -151,13 +156,13 @@ describe('aggregateCalories', () => {
 describe('estimateTDEE', () => {
   it('returns null with fewer than 2 weigh-ins', () => {
     expect(estimateTDEE([], {})).toBeNull();
-    expect(estimateTDEE([{ date: '2026-01-01', weightKg: 80 }], {})).toBeNull();
+    expect(estimateTDEE([{ date: new Date('2026-01-01'), weightKg: 80 }], {})).toBeNull();
   });
 
   it('returns null when both weigh-ins are on the same date', () => {
     const weights = [
-      { date: '2026-01-01', weightKg: 80 },
-      { date: '2026-01-01', weightKg: 80.2 },
+      { date: new Date('2026-01-01'), weightKg: 80 },
+      { date: new Date('2026-01-01'), weightKg: 80.2 },
     ];
     expect(estimateTDEE(weights, {})).toBeNull();
   });
@@ -165,8 +170,8 @@ describe('estimateTDEE', () => {
   it('estimates TDEE correctly for a maintenance scenario (no weight change)', () => {
     // 7-day period, stable weight, 2000 kcal/day → TDEE = 2000
     const weights = [
-      { date: '2026-01-01', weightKg: 80 },
-      { date: '2026-01-08', weightKg: 80 },
+      { date: new Date('2026-01-01'), weightKg: 80 },
+      { date: new Date('2026-01-08'), weightKg: 80 },
     ];
     const calories = {
       '2026-01-01': 2000, '2026-01-02': 2000, '2026-01-03': 2000,
@@ -186,8 +191,8 @@ describe('estimateTDEE', () => {
     // totalWeightChange = -0.5 kg
     // TDEE = 2000 - (-0.5 * 7700 / 7) = 2000 + 550 = 2550
     const weights = [
-      { date: '2026-01-01', weightKg: 80 },
-      { date: '2026-01-08', weightKg: 79.5 },
+      { date: new Date('2026-01-01'), weightKg: 80 },
+      { date: new Date('2026-01-08'), weightKg: 79.5 },
     ];
     const calories = {
       '2026-01-01': 2000, '2026-01-02': 2000, '2026-01-03': 2000,
@@ -203,8 +208,8 @@ describe('estimateTDEE', () => {
     // Gained 0.5 kg over 7 days eating 2500 kcal/day
     // TDEE = 2500 - (0.5 * 7700 / 7) = 2500 - 550 = 1950
     const weights = [
-      { date: '2026-01-01', weightKg: 80 },
-      { date: '2026-01-08', weightKg: 80.5 },
+      { date: new Date('2026-01-01'), weightKg: 80 },
+      { date: new Date('2026-01-08'), weightKg: 80.5 },
     ];
     const calories = {
       '2026-01-01': 2500, '2026-01-02': 2500, '2026-01-03': 2500,
@@ -217,8 +222,8 @@ describe('estimateTDEE', () => {
 
   it('sorts unsorted weightEntries before computing', () => {
     const weights = [
-      { date: '2026-01-08', weightKg: 80 },
-      { date: '2026-01-01', weightKg: 80 },
+      { date: new Date('2026-01-08'), weightKg: 80 },
+      { date: new Date('2026-01-01'), weightKg: 80 },
     ];
     const calories = {
       '2026-01-01': 2000, '2026-01-02': 2000, '2026-01-03': 2000,
@@ -232,12 +237,31 @@ describe('estimateTDEE', () => {
 
   it('returns avgDailyCalories of 0 when no calorie data overlaps the weight window', () => {
     const weights = [
-      { date: '2026-01-01', weightKg: 80 },
-      { date: '2026-01-08', weightKg: 80 },
+      { date: new Date('2026-01-01'), weightKg: 80 },
+      { date: new Date('2026-01-08'), weightKg: 80 },
     ];
     const result = estimateTDEE(weights, {});
     expect(result.avgDailyCalories).toBe(0);
     expect(result.tdee).toBe(0);
+  });
+
+  it('averages calories by number of logged entries, not by days in the window', () => {
+    // 7-day window (Jan 1 → Jan 8), but only 4 calorie entries logged.
+    // Total calories = 8000; average = 8000 / 4 = 2000 (not 8000 / 7 ≈ 1143).
+    // Stable weight → TDEE = avgDailyCalories = 2000.
+    const weights = [
+      { date: new Date('2026-01-01'), weightKg: 80 },
+      { date: new Date('2026-01-08'), weightKg: 80 },
+    ];
+    const calories = {
+      '2026-01-01': 2100,
+      '2026-01-03': 1900,
+      '2026-01-05': 2100,
+      '2026-01-07': 1900,
+    };
+    const result = estimateTDEE(weights, calories);
+    expect(result.avgDailyCalories).toBe(2000);
+    expect(result.tdee).toBe(2000);
   });
 });
 
