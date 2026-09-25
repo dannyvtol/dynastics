@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynastics</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <h1>Dynastics</h1>
+    <p class="site-tagline">MyNetDiary export analyser — all processing happens in your browser</p>
+  </header>
+
+  <main class="container">
+    <section id="upload-section">
+      <div
+        id="drop-zone"
+        role="button"
+        tabindex="0"
+        aria-label="Drop your MyNetDiary .xlsx export here, or click to choose a file"
+      >
+        <svg class="drop-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 9h-4V3H9v6H5l7 7 7-7zm-14 9v2h14v-2H5z"/>
+        </svg>
+        <p class="drop-primary">Drop your <strong>.xlsx</strong> export here</p>
+        <p class="drop-secondary">or <span class="link-style">click to choose a file</span></p>
+        <input id="file-input" type="file" accept=".xlsx" aria-hidden="true" />
+      </div>
+      <p id="upload-error" class="error-message" role="alert" hidden></p>
+    </section>
+
+    <section id="results-section" hidden>
+      <div id="results-container">
+        <!-- Populated by app.js after a successful parse -->
+      </div>
+      <button id="reupload-btn" class="link-btn" type="button">↩ Upload a different file</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
